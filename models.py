@@ -1,3 +1,5 @@
+# OOP models for Product, Customer, and Order entities
+
 """
 OOP models for the sales domain.
 
