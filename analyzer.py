@@ -1,3 +1,5 @@
+# Clean missing values and convert data types
+
 """
 SalesAnalyzer: loading, cleaning, analysis, exports, visualization.
 
