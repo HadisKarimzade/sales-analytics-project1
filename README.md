@@ -36,4 +36,6 @@ sales_analytics/
   data/
   output/
 ```
+This project analyzes sales data using Python, Pandas, and OOP principles.
+
 
