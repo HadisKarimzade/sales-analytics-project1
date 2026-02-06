@@ -1,3 +1,5 @@
+# Helper functions for validation and formatting
+
 """
 Utility helpers (validation, formatting, dates).
 """
