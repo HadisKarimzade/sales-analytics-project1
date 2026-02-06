@@ -84,3 +84,5 @@ Figures
 /mnt/data/sales_analytics/sales_analytics/output/figures/revenue_by_category.png
 /mnt/data/sales_analytics/sales_analytics/output/figures/monthly_revenue_trend.png
 /mnt/data/sales_analytics/sales_analytics/output/figures/order_amount_distribution.png
+
+All metrics were calculated using Pandas and NumPy.
