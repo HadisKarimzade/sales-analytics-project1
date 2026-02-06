@@ -1,0 +1,84 @@
+Sales Analytics Summary
+==========================
+Customers (unique): 49
+Total revenue (completed): 90958.24
+Average order value (AOV): 678.79
+Most profitable category: Home & Garden
+Repeat customer rate (completed): 76.60%
+
+Revenue by category (completed):
+  - Home & Garden: 22675.29
+  - Clothing: 21555.44
+  - Sports: 17730.78
+  - Books: 17270.91
+  - Electronics: 11725.82
+
+Order status distribution (%):
+  - completed: 67.00%
+  - pending: 19.00%
+  - cancelled: 14.00%
+
+Average quantity by category:
+  - Clothing: 2.68
+  - Sports: 2.68
+  - Home & Garden: 2.62
+  - Books: 2.38
+  - Electronics: 1.81
+
+Monthly revenue (completed):
+  - 2023-01: 9659.79
+  - 2023-02: 8722.57  (growth -9.70%)
+  - 2023-03: 2961.68  (growth -66.05%)
+  - 2023-04: 8414.83  (growth 184.12%)
+  - 2023-05: 7779.01  (growth -7.56%)
+  - 2023-06: 8466.52  (growth 8.84%)
+  - 2023-07: 9254.29  (growth 9.30%)
+  - 2023-08: 7768.71  (growth -16.05%)
+  - 2023-09: 8376.78  (growth 7.83%)
+  - 2023-10: 6834.62  (growth -18.41%)
+  - 2023-11: 5466.02  (growth -20.02%)
+  - 2023-12: 7253.42  (growth 32.70%)
+
+Outlier threshold (IQR upper bound): 1907.85
+Outliers count (completed): 4
+Top outliers:
+  - order ORD1172 | customer CUST46 | amount 1977.91
+  - order ORD1097 | customer CUST17 | amount 1972.97
+  - order ORD1056 | customer CUST6 | amount 1931.89
+  - order ORD1090 | customer CUST49 | amount 1925.86
+
+Customer segmentation (by lifetime value quartiles):
+  - Bronze: 12
+  - Silver: 12
+  - Gold: 11
+  - Platinum: 12
+
+Algorithmic Analysis
+====================
+Custom sort: merge_sort (O(n log n)), Built-in: sorted() (Timsort, optimized)
+Sorting timing (3 runs on n=200):
+  - custom merge_sort: 0.000965s
+  - built-in sorted(): 0.000048s
+  - relative (custom/builtin): 19.93x
+
+Custom search: binary_search (O(log n)), Built-in: 'in' (linear on list, O(n))
+Searching timing (2000 runs on n=200):
+  - custom binary_search: 0.001425s
+  - built-in 'in': 0.001602s
+  - relative (custom/builtin): 0.89x
+
+Why built-ins can be faster:
+- Python built-ins are highly optimized and implemented in C, reducing Python-level overhead.
+- They use efficient algorithms and memory operations under the hood.
+
+
+Exports
+=======
+top_customers: /mnt/data/sales_analytics/sales_analytics/output/top_customers.csv
+top_products: /mnt/data/sales_analytics/sales_analytics/output/top_products.csv
+
+Figures
+=======
+/mnt/data/sales_analytics/sales_analytics/output/figures/revenue_by_category.png
+/mnt/data/sales_analytics/sales_analytics/output/figures/monthly_revenue_trend.png
+/mnt/data/sales_analytics/sales_analytics/output/figures/order_amount_distribution.png
