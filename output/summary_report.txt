@@ -1,5 +1,3 @@
-=== Sales Analytics Summary ===
-
 Sales Analytics Summary
 ==========================
 Customers (unique): 49
@@ -59,15 +57,15 @@ Algorithmic Analysis
 ====================
 Custom sort: merge_sort (O(n log n)), Built-in: sorted() (Timsort, optimized)
 Sorting timing (3 runs on n=200):
-  - custom merge_sort: 0.000965s
-  - built-in sorted(): 0.000048s
-  - relative (custom/builtin): 19.93x
+  - custom merge_sort: 0.000802s
+  - built-in sorted(): 0.000031s
+  - relative (custom/builtin): 26.13x
 
 Custom search: binary_search (O(log n)), Built-in: 'in' (linear on list, O(n))
 Searching timing (2000 runs on n=200):
-  - custom binary_search: 0.001425s
-  - built-in 'in': 0.001602s
-  - relative (custom/builtin): 0.89x
+  - custom binary_search: 0.001399s
+  - built-in 'in': 0.001209s
+  - relative (custom/builtin): 1.16x
 
 Why built-ins can be faster:
 - Python built-ins are highly optimized and implemented in C, reducing Python-level overhead.
@@ -76,13 +74,11 @@ Why built-ins can be faster:
 
 Exports
 =======
-top_customers: /mnt/data/sales_analytics/sales_analytics/output/top_customers.csv
-top_products: /mnt/data/sales_analytics/sales_analytics/output/top_products.csv
+top_customers: C:\Users\hadis\Desktop\sales_analytics_1\output\top_customers.csv
+top_products: C:\Users\hadis\Desktop\sales_analytics_1\output\top_products.csv
 
 Figures
 =======
-/mnt/data/sales_analytics/sales_analytics/output/figures/revenue_by_category.png
-/mnt/data/sales_analytics/sales_analytics/output/figures/monthly_revenue_trend.png
-/mnt/data/sales_analytics/sales_analytics/output/figures/order_amount_distribution.png
-
-All metrics were calculated using Pandas and NumPy.
+C:\Users\hadis\Desktop\sales_analytics_1\output\figures\revenue_by_category.png
+C:\Users\hadis\Desktop\sales_analytics_1\output\figures\monthly_revenue_trend.png
+C:\Users\hadis\Desktop\sales_analytics_1\output\figures\order_amount_distribution.png
