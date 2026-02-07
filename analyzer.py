@@ -1,322 +1,147 @@
-# Clean missing values and convert data types
-
-"""
-SalesAnalyzer: loading, cleaning, analysis, exports, visualization.
-
-Also includes a Strategy design pattern for missing-value handling.
-"""
-from __future__ import annotations
-
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Tuple
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
-from algorithms import compare_search_timing, compare_sort_timing
-from utils import normalize_status, parse_money, to_datetime_series
-
-
-# -------- Strategy Pattern (for missing values) --------
-
-class MissingValueStrategy:
-    """Strategy interface."""
-    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
-        raise NotImplementedError
+from algorithms import merge_sort, linear_search, binary_search
+from utils import to_datetime_series, to_float_series
+import timeit
 
 
-class DropMissingStrategy(MissingValueStrategy):
-    """Drop rows with critical missing values."""
-    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
-        critical = ["order_id", "customer_id", "order_date", "product_category", "product_name", "quantity", "unit_price", "order_amount", "status"]
-        return df.dropna(subset=critical)
-
-
-class FillStatusStrategy(MissingValueStrategy):
-    """Fill missing status with 'pending' (common business assumption)."""
-    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["status"] = df["status"].fillna("pending")
-        return df
-
-
-@dataclass
 class SalesAnalyzer:
-    raw_csv_path: Path
-    clean_csv_path: Path
-    output_dir: Path
-    figures_dir: Path
 
-    def load_data(self) -> pd.DataFrame:
-        df = pd.read_csv(self.raw_csv_path)
-        return df
+    def __init__(self, raw_csv, clean_csv, out_dir, fig_dir):
+        self.raw_csv = raw_csv
+        self.clean_csv = clean_csv
+        self.out_dir = out_dir
+        self.fig_dir = fig_dir
 
-    def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Cleaning steps (documented):
-        1) Standardize column names
-        2) Parse dates
-        3) Normalize status
-        4) Convert numeric columns (quantity, unit_price, order_amount)
-        5) Remove duplicates
-        6) Handle missing values with Strategy (fill status -> drop critical)
-        """
-        df = df.copy()
-        df.columns = [c.strip() for c in df.columns]
+    # ---------- Load & Clean ----------
 
-        # Parse + standardize date
+    def load_data(self):
+        return pd.read_csv(self.raw_csv)
+
+    def clean_data(self, df):
         df["order_date"] = to_datetime_series(df["order_date"])
+        df["order_amount"] = to_float_series(df["order_amount"])
 
-        # Normalize status
-        df["status"] = df["status"].apply(normalize_status)
-
-        # Numeric parsing
-        df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce")
-        df["unit_price"] = df["unit_price"].apply(parse_money)
-        df["order_amount"] = df["order_amount"].apply(parse_money)
-
-        # Basic validity
-        df = df[df["quantity"] > 0]
-        df = df[df["unit_price"] >= 0]
-        df = df[df["order_amount"] >= 0]
-
-        # Remove duplicates
+        df = df.dropna()
         df = df.drop_duplicates()
 
-        # Strategies
-        df = FillStatusStrategy().apply(df)
-        df = DropMissingStrategy().apply(df)
-
-        # Final types
-        df["quantity"] = df["quantity"].astype(int)
-        df["unit_price"] = df["unit_price"].astype(float)
-        df["order_amount"] = df["order_amount"].astype(float)
-        df["order_date"] = pd.to_datetime(df["order_date"]).dt.date  # store as date
-        df["status"] = df["status"].astype(str)
-
         return df
 
-    def export_clean_data(self, df_clean: pd.DataFrame) -> None:
-        df_clean.to_csv(self.clean_csv_path, index=False)
+    def export_clean(self, df):
+        df.to_csv(self.clean_csv, index=False)
 
-    # -------- Analytics & Business Insights --------
+    # ---------- Analytics ----------
 
-    def run_analytics_and_exports(self, df: pd.DataFrame) -> Tuple[str, Dict[str, Path]]:
-        """
-        Answers 8+ business questions and exports CSV outputs.
-        Returns (report_text, exports_dict).
-        """
-        df = df.copy()
-        df["order_date"] = pd.to_datetime(df["order_date"])
+    def analytics(self, df):
 
-        completed = df[df["status"] == "completed"].copy()
+        completed = df[df["status"] == "completed"]
 
-        # Q1 Total revenue
         total_revenue = completed["order_amount"].sum()
-
-        # Q2 Average order value (AOV)
-        aov = completed.groupby("order_id")["order_amount"].sum().mean()
-
-        # Q3 Customer count
+        aov = completed["order_amount"].mean()
         customer_count = df["customer_id"].nunique()
 
-        # Q4 Most profitable category
-        revenue_by_cat = completed.groupby("product_category")["order_amount"].sum().sort_values(ascending=False)
-        top_category = revenue_by_cat.index[0] if len(revenue_by_cat) else "N/A"
+        revenue_by_category = completed.groupby("product_category")["order_amount"].sum()
+        top_category = revenue_by_category.idxmax()
 
-        # Q5 Top 10 customers by lifetime value (sum of completed order_amount)
-        customer_ltv = completed.groupby("customer_id")["order_amount"].sum().sort_values(ascending=False)
-        top_customers = customer_ltv.head(10).reset_index().rename(columns={"order_amount": "lifetime_value"})
-        top_customers_path = self.output_dir / "top_customers.csv"
-        top_customers.to_csv(top_customers_path, index=False)
+        cancel_rate = (df["status"] == "cancelled").mean() * 100
 
-        # Q6 Repeat customer rate (customers with >1 completed order)
-        orders_per_customer = completed.groupby("customer_id")["order_id"].nunique()
-        repeat_rate = (orders_per_customer.gt(1).mean() * 100) if len(orders_per_customer) else 0.0
+        df["month"] = df["order_date"].dt.month
+        monthly_revenue = completed.groupby("month")["order_amount"].sum()
 
-        # Q7 Monthly trend in sales (completed)
-        completed["month"] = completed["order_date"].dt.to_period("M").astype(str)
-        monthly_revenue = completed.groupby("month")["order_amount"].sum().sort_index()
-        monthly_growth = monthly_revenue.pct_change().replace([np.inf, -np.inf], np.nan) * 100
+        avg_order_by_cat = df.groupby("product_category")["order_amount"].mean()
 
-        # Q8 Cancelled vs completed percentage
-        status_pct = (df["status"].value_counts(normalize=True) * 100).round(2)
+        outliers = df[df["order_amount"] > df["order_amount"].mean() * 3]
 
-        # Q9 Average order size by category (quantity per order line)
-        avg_qty_by_cat = df.groupby("product_category")["quantity"].mean().sort_values(ascending=False)
+        report = f"""
+Total Revenue: {total_revenue:.2f}
+Average Order Value: {aov:.2f}
+Customer Count: {customer_count}
+Top Category: {top_category}
+Cancelled Rate: {cancel_rate:.2f}%
+Outliers Count: {len(outliers)}
 
-        # Q10 Outliers (unusually large orders) using IQR on completed order_amount
-        q1 = completed["order_amount"].quantile(0.25)
-        q3 = completed["order_amount"].quantile(0.75)
-        iqr = q3 - q1
-        upper = q3 + 1.5 * iqr
-        outliers = completed[completed["order_amount"] > upper][["order_id", "customer_id", "order_amount"]].sort_values("order_amount", ascending=False)
+Monthly Revenue:
+{monthly_revenue}
 
-        # Export top products
-        top_products = completed.groupby(["product_category", "product_name"])["order_amount"].sum().sort_values(ascending=False).head(10).reset_index()
-        top_products_path = self.output_dir / "top_products.csv"
-        top_products.to_csv(top_products_path, index=False)
+Average Order by Category:
+{avg_order_by_cat}
+"""
 
-        # Customer segmentation by spending tier (quartiles)
-        ltv = customer_ltv.copy()
-        if len(ltv) >= 4:
-            tiers = pd.qcut(ltv, 4, labels=["Bronze", "Silver", "Gold", "Platinum"])
-            segmentation = tiers.value_counts().sort_index()
-        else:
-            segmentation = pd.Series(dtype=int)
+        return report, {}
 
-        # Build report text
-        lines: List[str] = []
-        lines.append("Sales Analytics Summary")
-        lines.append("=" * 26)
-        lines.append(f"Customers (unique): {customer_count}")
-        lines.append(f"Total revenue (completed): {total_revenue:.2f}")
-        lines.append(f"Average order value (AOV): {aov:.2f}")
-        lines.append(f"Most profitable category: {top_category}")
-        lines.append(f"Repeat customer rate (completed): {repeat_rate:.2f}%")
-        lines.append("")
-        lines.append("Revenue by category (completed):")
-        for cat, rev in revenue_by_cat.items():
-            lines.append(f"  - {cat}: {rev:.2f}")
-        lines.append("")
-        lines.append("Order status distribution (%):")
-        for st, p in status_pct.items():
-            lines.append(f"  - {st}: {p:.2f}%")
-        lines.append("")
-        lines.append("Average quantity by category:")
-        for cat, v in avg_qty_by_cat.items():
-            lines.append(f"  - {cat}: {v:.2f}")
-        lines.append("")
-        lines.append("Monthly revenue (completed):")
-        for m, rev in monthly_revenue.items():
-            g = monthly_growth.get(m, np.nan)
-            if pd.isna(g):
-                lines.append(f"  - {m}: {rev:.2f}")
-            else:
-                lines.append(f"  - {m}: {rev:.2f}  (growth {g:.2f}%)")
-        lines.append("")
-        lines.append(f"Outlier threshold (IQR upper bound): {upper:.2f}")
-        lines.append(f"Outliers count (completed): {len(outliers)}")
-        if len(outliers):
-            lines.append("Top outliers:")
-            for _, r in outliers.head(5).iterrows():
-                lines.append(f"  - order {r['order_id']} | customer {r['customer_id']} | amount {r['order_amount']:.2f}")
-        lines.append("")
-        if len(segmentation):
-            lines.append("Customer segmentation (by lifetime value quartiles):")
-            for tier, cnt in segmentation.items():
-                lines.append(f"  - {tier}: {cnt}")
+    # ---------- Algorithms ----------
 
-        report_text = "\n".join(lines)
-        exports = {
-            "top_customers": top_customers_path,
-            "top_products": top_products_path,
-        }
-        return report_text, exports
+    def algorithm_report(self, df):
 
-    # -------- Algorithmic Analysis --------
+        amounts = df["order_amount"].tolist()
 
-    def run_algorithmic_analysis(self, df: pd.DataFrame) -> str:
-        """
-        Implements custom sort/search and compares with built-ins using timeit.
-        Also documents Big-O briefly.
-        """
-        # Use order_amount list for timing
-        amounts = df["order_amount"].dropna().astype(float).tolist()
-        if len(amounts) < 10:
-            return "Algorithmic Analysis\n=\nNot enough data for timing comparisons."
+        t_sort_custom = timeit.timeit(lambda: merge_sort(amounts), number=20)
+        t_sort_builtin = timeit.timeit(lambda: sorted(amounts), number=20)
 
-        # Sorting timing
-        sort_res = compare_sort_timing(amounts[:2000], repeats=3)  # cap to keep runtime reasonable
-        sorted_amounts = sorted(amounts)
+        target = amounts[len(amounts)//2]
 
-        # Searching timing
-        target = sorted_amounts[len(sorted_amounts)//2]
-        search_res = compare_search_timing(sorted_amounts, target, repeats=2000)
+        t_linear = timeit.timeit(lambda: linear_search(amounts, target), number=200)
+        t_binary = timeit.timeit(lambda: binary_search(sorted(amounts), target), number=200)
 
-        lines = []
-        lines.append("Algorithmic Analysis")
-        lines.append("=" * 20)
-        lines.append("Custom sort: merge_sort (O(n log n)), Built-in: sorted() (Timsort, optimized)")
-        lines.append(f"Sorting timing (3 runs on n={min(len(amounts), 2000)}):")
-        lines.append(f"  - custom merge_sort: {sort_res.custom_seconds:.6f}s")
-        lines.append(f"  - built-in sorted(): {sort_res.builtin_seconds:.6f}s")
-        lines.append(f"  - relative (custom/builtin): {sort_res.speedup:.2f}x")
-        lines.append("")
-        lines.append("Custom search: binary_search (O(log n)), Built-in: 'in' (linear on list, O(n))")
-        lines.append(f"Searching timing (2000 runs on n={len(sorted_amounts)}):")
-        lines.append(f"  - custom binary_search: {search_res.custom_seconds:.6f}s")
-        lines.append(f"  - built-in 'in': {search_res.builtin_seconds:.6f}s")
-        lines.append(f"  - relative (custom/builtin): {search_res.speedup:.2f}x")
-        lines.append("")
-        lines.append("Why built-ins can be faster:")
-        lines.append("- Python built-ins are highly optimized and implemented in C, reducing Python-level overhead.")
-        lines.append("- They use efficient algorithms and memory operations under the hood.")
-        return "\n".join(lines)
+        report = f"""
+Algorithms Timing:
 
-    # -------- Visualizations --------
+Custom sort: {t_sort_custom:.4f}s
+Built-in sort: {t_sort_builtin:.4f}s
 
-    def create_visualizations(self, df: pd.DataFrame) -> List[Path]:
-        df = df.copy()
-        df["order_date"] = pd.to_datetime(df["order_date"])
-        completed = df[df["status"] == "completed"].copy()
+Linear search: {t_linear:.4f}s
+Binary search: {t_binary:.4f}s
 
-        paths: List[Path] = []
+Big-O:
+Sort: O(n log n)
+Linear search: O(n)
+Binary search: O(log n)
+"""
 
-        # 1) Bar chart: revenue by category
-        rev_by_cat = completed.groupby("product_category")["order_amount"].sum().sort_values(ascending=False)
-        plt.figure()
-        plt.bar(rev_by_cat.index.astype(str), rev_by_cat.values)
-        plt.title("Revenue by Category (Completed)")
-        plt.xlabel("Category")
-        plt.ylabel("Revenue")
-        plt.xticks(rotation=45, ha="right")
-        p1 = self.figures_dir / "revenue_by_category.png"
-        plt.tight_layout()
+        return report
+
+    # ---------- Visuals ----------
+
+    def visuals(self, df):
+
+        paths = []
+
+        completed = df[df["status"] == "completed"]
+
+        # Bar chart
+        cat_rev = completed.groupby("product_category")["order_amount"].sum()
+        p1 = self.fig_dir / "category_revenue.png"
+        cat_rev.plot(kind="bar")
         plt.savefig(p1)
         plt.close()
         paths.append(p1)
 
-        # 2) Line chart: monthly revenue trend
-        completed["month"] = completed["order_date"].dt.to_period("M").dt.to_timestamp()
-        monthly = completed.groupby("month")["order_amount"].sum().sort_index()
-        plt.figure()
-        plt.plot(monthly.index, monthly.values)
-        plt.title("Monthly Revenue Trend (Completed)")
-        plt.xlabel("Month")
-        plt.ylabel("Revenue")
-        plt.xticks(rotation=45, ha="right")
-        p2 = self.figures_dir / "monthly_revenue_trend.png"
-        plt.tight_layout()
+        # Line chart
+        completed["month"] = completed["order_date"].dt.month
+        monthly = completed.groupby("month")["order_amount"].sum()
+        p2 = self.fig_dir / "monthly_revenue.png"
+        monthly.plot()
         plt.savefig(p2)
         plt.close()
         paths.append(p2)
 
-        # 3) Histogram: order amount distribution
-        plt.figure()
-        plt.hist(completed["order_amount"].values, bins=20)
-        plt.title("Order Amount Distribution (Completed)")
-        plt.xlabel("Order Amount")
-        plt.ylabel("Frequency")
-        p3 = self.figures_dir / "order_amount_distribution.png"
-        plt.tight_layout()
+        # Histogram
+        p3 = self.fig_dir / "order_distribution.png"
+        plt.hist(df["order_amount"], bins=20)
         plt.savefig(p3)
         plt.close()
         paths.append(p3)
 
         return paths
 
-    # -------- Reporting --------
+    # ---------- Report ----------
 
-    def write_summary_report(self, body: str, figure_paths: List[Path], exports: Dict[str, Path]) -> None:
-        out_path = self.output_dir / "summary_report.txt"
-        lines = [body, "\n", "Exports", "=" * 7]
-        for k, p in exports.items():
-            lines.append(f"{k}: {p}")
-        lines.append("")
-        lines.append("Figures")
-        lines.append("=" * 7)
-        for p in figure_paths:
-            lines.append(str(p))
-        out_path.write_text("\n".join(lines), encoding="utf-8")
+    def write_report(self, text, figs, exports):
+
+        path = self.out_dir / "summary_report.txt"
+
+        with open(path, "w") as f:
+            f.write(text)
+            f.write("\nFigures:\n")
+            for p in figs:
+                f.write(str(p) + "\n")

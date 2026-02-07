@@ -1,53 +1,31 @@
-"""
-Entry point / orchestration.
-
-Run:
-    python main.py
-"""
 from pathlib import Path
-
 from analyzer import SalesAnalyzer
 from utils import ensure_dirs
 
 
-def main() -> None:
-    project_root = Path(__file__).resolve().parent
-    data_dir = project_root / "data"
-    output_dir = project_root / "output"
-    figures_dir = output_dir / "figures"
-    ensure_dirs([data_dir, output_dir, figures_dir])
-
-    raw_path = data_dir / "sales_data.csv"
-    clean_path = data_dir / "sales_clean.csv"
+def main():
+    root = Path(__file__).resolve().parent
+    data_dir = root / "data"
+    out_dir = root / "output"
+    fig_dir = out_dir / "figures"
+    ensure_dirs([data_dir, out_dir, fig_dir])
 
     analyzer = SalesAnalyzer(
-        raw_csv_path=raw_path,
-        clean_csv_path=clean_path,
-        output_dir=output_dir,
-        figures_dir=figures_dir,
+        raw_csv=data_dir / "sales_data.csv",
+        clean_csv=data_dir / "sales_clean.csv",
+        out_dir=out_dir,
+        fig_dir=fig_dir,
     )
 
-    # 1) load + clean
-    df_raw = analyzer.load_data()
-    df_clean = analyzer.clean_data(df_raw)
-    analyzer.export_clean_data(df_clean)
+    df = analyzer.clean_data(analyzer.load_data())
+    analyzer.export_clean(df)
 
-    # 2) analytics + exports
-    report_text, exports = analyzer.run_analytics_and_exports(df_clean)
+    report_text, exports = analyzer.analytics(df)
+    algo_text = analyzer.algorithm_report(df)
+    figs = analyzer.visuals(df)
 
-    # 3) algorithms + timing comparisons
-    algo_report = analyzer.run_algorithmic_analysis(df_clean)
-
-    # 4) visuals
-    figure_paths = analyzer.create_visualizations(df_clean)
-
-    # 5) final report
-    analyzer.write_summary_report(report_text + "\n\n" + algo_report, figure_paths, exports)
-
+    analyzer.write_report(report_text + "\n\n" + algo_text, figs, exports)
     print("✅ Done.")
-    print(f"Cleaned CSV: {clean_path}")
-    print(f"Report: {output_dir/'summary_report.txt'}")
-    print(f"Figures: {figures_dir}")
 
 
 if __name__ == "__main__":
